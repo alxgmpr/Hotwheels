@@ -1,0 +1,21 @@
+{
+  "store_id": 10151,
+  "catalog_id": 11601,
+  "dummy_item_cat_id": 84959,
+  "dummy_item_part_num": "",
+
+  "use_catchall": true,
+
+  "catchall": "@alexgompper.me",
+
+  "catchall_address1": "",
+  "catchall_address2": "",
+  "catchall_city": "",
+  "catchall_state": "",
+  "catchall_zip": "",
+
+  "catchall_credit_card_num": "",
+  "catchall_credit_card_exp_m": "",
+  "catchall_credit_card_exp_y": "",
+  "catchall_credit_card_cvv": ""
+}
