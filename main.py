@@ -30,15 +30,30 @@ def main():
         print('error loading tasks from file')
         exit(-1)
 
+    if settings['use_catchall'] and len(tasks) < settings['catchall_num_tasks']:
+        print('error not enough tasks for catchall setting')
+        print('have {} tasks and catchall set for {}'.format(len(tasks), settings['catchall_num_tasks']))
+        exit(-1)
+
     threads = list()
-    for idx, task in enumerate(tasks['tasks']):
-        print('starting task {}'.format(idx))
-        w = Worker(
-            settings=settings,
-            task=task
-        )
-        threads.append(w)
-        threads[idx].start()
+    if settings['use_catchall']:
+        for idx in settings['catchall_num_tasks']:
+            print('starting task {}'.format(idx))
+            w = Worker(
+                settings=settings,
+                task=tasks[idx]
+            )
+            threads.append(w)
+            threads[idx].start()
+    else:
+        for idx, task in enumerate(tasks['tasks']):
+            print('starting task {}'.format(idx))
+            w = Worker(
+                settings=settings,
+                task=task
+            )
+            threads.append(w)
+            threads[idx].start()
 
 
 if __name__ == '__main__':
