@@ -221,6 +221,32 @@ class Worker(threading.Thread):
         print('logged in successfully')
         return True
 
+    def set_account_tier(self, tier=2, tier_code='Chrome'):
+        print('setting account to tier {}'.format(tier))
+        try:
+            r = self.s.post(
+                url='https://hotwheelscollectors.mattel.com/shop/AjaxUpdateMembershipInfo',
+                data={
+                    "storeId": self.settings['store_id'],
+                    "catalogId": self.settings['catalog_id'],
+                    "langId": "-1",
+                    "membershipTierCode": tier_code,
+                    "membershipID": tier,
+                    "clubName": "Hot Wheels Collector- {}".format(tier_code),
+                    "requesttype": "ajax"
+                }
+            )
+        except requests.exceptions.ConnectionError:
+            print('connection error while setting account tier')
+            return False
+        try:
+            r.raise_for_status()
+        except requests.exceptions.HTTPError:
+            print('error bad status code {} while setting account tier'.format(r.status_code))
+            return False
+        print('finished setting account tier')
+        return True
+
     def go_to_shop(self):
         """
         Purpose here is really to just populate cookies, it might be an optional step. Further down the line I'd like
