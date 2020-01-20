@@ -45,20 +45,26 @@ class Worker(threading.Thread):
 
         # if using catchall + generation or task defined
         # TODO: finish setting this
-        if not self.settings['use_catchall']:
+        if not self.settings['use_catchall'] and not self.settings['generate_accounts']:
             print('using task defined data')
             try:
                 self.cc_num = self.task['cc_num']
                 self.cc_exp_m = self.task['cc_exp_m']
                 self.cc_exp_y = self.task['cc_exp_y']
                 self.cc_cvv = self.task['cc_cvv']
+                self.cc_brand = self.task['cc_brand']
+
+                self.first_name = self.task['first_name']
+                self.last_name = self.task['last_name']
+                self.email = self.task['email']
+                self.password = self.task['password']
             except IndexError:
                 raise Exception('Missing data from task')
         else:
             print('using catchall (globally defined CC + address + random name/account)')
             self.cc_num = self.settings['catchall_credit_card_num']
-            self.cc_exp_m = self.settings['catchall_credit_exp_m']
-            self.cc_exp_y = self.settings['catchall_credit_exp_y']
+            self.cc_exp_m = self.settings['catchall_credit_card_exp_m']
+            self.cc_exp_y = self.settings['catchall_credit_card_exp_y']
             self.cc_cvv = self.settings['catchall_credit_card_cvv']
             self.cc_brand = self.settings['catchall_credit_card_brand']
 
@@ -211,7 +217,8 @@ class Worker(threading.Thread):
                     "returnPage": "",
                     "mergeCart": "true",
                     "rememberMe": "true",
-                    "URL": "RESTOrderCalculate?URL=AjaxLogonForm&calculationUsageId=-1&calculationUsageId=-2&deleteCartCookie=true&page=",
+                    "URL": "RESTOrderCalculate?URL=AjaxLogonForm&calculationUsageId=-1&calculationUsageId=-2"
+                           "&deleteCartCookie=true&page=",
                     "logonIdDisplay": self.email,
                     "logonId": "10151|{}".format(self.email),
                     "logonPassword": self.password,
@@ -308,6 +315,10 @@ class Worker(threading.Thread):
             self.order_id = re.findall('"orderId": "(.*)",', r.text)[0]
         except IndexError:
             print('error unable to find order ID from response data')
+            print(r.text)
+
+            if 'out of stock' in r.text:
+                print('dummy item is out of stock')
             return False
         try:
             self.dummy_order_item_id = re.findall('"orderItemId": "(.*)"', r.text)[0]
@@ -945,14 +956,12 @@ class Worker(threading.Thread):
         print('worker is running')
         if self.settings['generate_accounts']:
             self.create_account()
+            self.set_account_tier()
             self.add_dummy_item()
             self.save_for_later()
             return True
         if self.settings['use_catchall']:
-            self.create_account()
-            self.go_to_shop()
-            self.add_dummy_item()
-            self.save_for_later()
+            self.login()
             self.add_target_item()
             self.add_and_set_shipping_address()
             self.add_and_set_cc()
