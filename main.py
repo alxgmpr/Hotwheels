@@ -1,4 +1,5 @@
 import os
+import threading
 import json
 
 from classes.worker import Worker
@@ -6,6 +7,9 @@ from classes.worker import Worker
 
 def main():
     print('hotwheel bot running')
+
+    # define lock for the account file
+    lock = threading.Lock()
 
     # load settings from json
     print('loading settings from settings.json')
@@ -19,29 +23,71 @@ def main():
         print('error loading settings from file')
         exit(-1)
 
-    print('loading tasks from tasks.json')
-    try:
-        with open(os.path.abspath('tasks.json')) as tasks_file:
-            try:
-                tasks = json.load(tasks_file)
-            except json.decoder.JSONDecodeError:
-                print('error parsing json in tasks')
-    except IOError:
-        print('error loading tasks from file')
-        exit(-1)
+    if settings['use_catchall'] and not settings['generate_accounts']:
+        # if we have the use catchall flag, then we read from 'accounts.txt' (instead of tasks json)
+        # the file is generated using the 'generate_accounts' flag
+        # {EMAIL}:{PASSWORD}:{FIRST_NAME}:{LAST_NAME}
+        print('loading tasks from accounts.txt')
+        try:
+            with open(os.path.abspath('accounts.txt'))as accounts_file:
+                # if the file gets really big, this could blow up since it reads right into memory
+                account_lines = accounts_file.readlines(16000)
+                # remove whitespace chars
+                account_lines = list(map(lambda x: x.strip(), account_lines))
+                # remove '' strings
+                account_lines = list(filter(None, account_lines))
+                tasks = dict()
+                tasks['tasks'] = list()
+                for account_line in account_lines:
+                    split_account_line = account_line.split(':')
+                    try:
+                        tasks['tasks'].append({
+                            'email': split_account_line[0],
+                            'password': split_account_line[1],
+                            'first_name': split_account_line[2],
+                            'last_name': split_account_line[3]
+                        })
+                    except IndexError:
+                        print('error missing data from account line')
+                        exit(-1)
+        except IOError:
+            print('error loading tasks from file')
+            exit(-1)
+    else:
+        print('loading tasks from tasks.json')
+        try:
+            with open(os.path.abspath('tasks.json')) as tasks_file:
+                try:
+                    tasks = json.load(tasks_file)
+                except json.decoder.JSONDecodeError:
+                    print('error parsing json in tasks')
+        except IOError:
+            print('error loading tasks from file')
+            exit(-1)
 
-    if settings['use_catchall'] and len(tasks) < settings['catchall_num_tasks']:
+    if not settings['generate_accounts'] and settings['use_catchall'] and len(tasks) < settings['catchall_num_tasks']:
         print('error not enough tasks for catchall setting')
         print('have {} tasks and catchall set for {}'.format(len(tasks), settings['catchall_num_tasks']))
         exit(-1)
 
     threads = list()
-    if settings['use_catchall']:
-        for idx in settings['catchall_num_tasks']:
-            print('starting task {}'.format(idx))
+    if settings['generate_accounts']:
+        for idx in range(settings['generate_accounts_num_tasks']):
+            print('starting generate task {}'.format(idx))
             w = Worker(
                 settings=settings,
-                task=tasks[idx]
+                task=None,
+                account_lock=lock
+            )
+            threads.append(w)
+            threads[idx].start()
+    elif settings['use_catchall']:
+        for idx in range(settings['catchall_num_tasks']):
+            print('starting catchall task {}'.format(idx))
+            w = Worker(
+                settings=settings,
+                task=tasks['tasks'][idx],
+                account_lock=lock
             )
             threads.append(w)
             threads[idx].start()
@@ -50,7 +96,8 @@ def main():
             print('starting task {}'.format(idx))
             w = Worker(
                 settings=settings,
-                task=task
+                task=task,
+                account_lock=lock
             )
             threads.append(w)
             threads[idx].start()
