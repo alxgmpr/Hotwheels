@@ -1,0 +1,31 @@
+{
+  "store_id": 10151,
+  "catalog_id": 11601,
+  "dummy_item_cat_id": 325471,
+  "dummy_item_part_num": "AFYT81",
+  "target_item_cat_id": 123,
+  "target_item_part_num": "GDF98",
+
+  "use_catchall": false,
+  "generate_accounts": true,
+
+  "catchall_num_tasks": 1,
+  "generate_accounts_num_tasks": 1,
+
+  "catchall_email_suffix": "@gmail.com",
+  "password_prefix": "Passw0rd",
+
+  "shipping_method_id": 10696,
+
+  "catchall_address1": "",
+  "catchall_address2": "",
+  "catchall_city": "",
+  "catchall_state": "",
+  "catchall_zip": "",
+
+  "catchall_credit_card_num": "",
+  "catchall_credit_card_brand": "",
+  "catchall_credit_card_exp_m": "",
+  "catchall_credit_card_exp_y": "",
+  "catchall_credit_card_cvv": ""
+}
