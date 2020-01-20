@@ -19,11 +19,25 @@ def main():
                 settings = json.load(settings_file)
             except json.decoder.JSONDecodeError:
                 print('error parsing json in settings')
+                exit(-1)
     except IOError:
         print('error loading settings from file')
         exit(-1)
 
     if settings['use_catchall'] and not settings['generate_accounts']:
+        # load up a set of privacy cards to use for each catchall task
+        print('loading privacy cards from cards.json')
+        try:
+            with open(os.path.abspath('cards.json')) as cards_file:
+                try:
+                    cards_json = json.load(cards_file)
+                except json.decoder.JSONDecodeError:
+                    print('error parsing json in cards')
+                    exit(-1)
+        except IOError:
+            print('error opening cards.json')
+            exit(-1)
+
         # if we have the use catchall flag, then we read from 'accounts.txt' (instead of tasks json)
         # the file is generated using the 'generate_accounts' flag
         # {EMAIL}:{PASSWORD}:{FIRST_NAME}:{LAST_NAME}
