@@ -17,11 +17,12 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class Worker(threading.Thread):
-    def __init__(self, settings, task):
+    def __init__(self, settings, task, account_lock):
         super().__init__()
+        self.lock = account_lock
         if not settings:
             raise Exception('Missing settings')
-        if not task:
+        if not task and not settings['generate_accounts']:
             raise Exception('Missing task')
         self.settings = settings
         self.task = task
@@ -175,7 +176,14 @@ class Worker(threading.Thread):
             print('bad status code {} while creating account'.format(r.status_code))
             return False
         print('generated account: {}:{}'.format(r_email, r_password))
+        self.write_account_to_file(r_email, r_password)
         return True
+
+    def write_account_to_file(self, username, password):
+        self.lock.acquire()
+        with open('accounts.txt', 'a') as account_file:
+            account_file.write('{}:{}:{}:{}\n'.format(username, password, self.first_name, self.last_name))
+        self.lock.release()
 
     def login(self):
         """
