@@ -1,4 +1,7 @@
 venv
 *.pyc
 tasks.json
+settings.json
+cards.json
+accounts.txt
 .idea
