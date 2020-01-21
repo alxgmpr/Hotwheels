@@ -2,6 +2,7 @@ import threading
 import random
 import string
 import re
+from datetime import datetime
 
 import requests
 import names
@@ -46,7 +47,7 @@ class Worker(threading.Thread):
         # if using catchall + generation or task defined
         # TODO: finish setting this
         if not self.settings['use_catchall'] and not self.settings['generate_accounts']:
-            print('using task defined data')
+            self.log('using task defined data')
             try:
                 self.cc_num = self.task['cc_num']
                 self.cc_exp_m = self.task['cc_exp_m']
@@ -58,15 +59,25 @@ class Worker(threading.Thread):
                 self.last_name = self.task['last_name']
                 self.email = self.task['email']
                 self.password = self.task['password']
+
+                # TODO: finish the rest of the address data assigned to self
             except IndexError:
                 raise Exception('Missing data from task')
         else:
-            print('using catchall (globally defined CC + address + random name/account)')
-            self.cc_num = self.settings['catchall_credit_card_num']
-            self.cc_exp_m = self.settings['catchall_credit_card_exp_m']
-            self.cc_exp_y = self.settings['catchall_credit_card_exp_y']
-            self.cc_cvv = self.settings['catchall_credit_card_cvv']
-            self.cc_brand = self.settings['catchall_credit_card_brand']
+            self.log('using catchall (task defined CC + address + task defined name/account)')
+            try:
+                self.cc_num = self.task['cc_num']
+                self.cc_exp_m = self.task['cc_exp_m']
+                self.cc_exp_y = self.task['cc_exp_y']
+                self.cc_cvv = self.task['cc_cvv']
+                self.cc_brand = self.task['cc_brand']
+            except (TypeError, KeyError):
+                self.log('key error - using globally defined cc')
+                self.cc_num = self.settings['catchall_credit_card_num']
+                self.cc_exp_m = self.settings['catchall_credit_card_exp_m']
+                self.cc_exp_y = self.settings['catchall_credit_card_exp_y']
+                self.cc_cvv = self.settings['catchall_credit_card_cvv']
+                self.cc_brand = self.settings['catchall_credit_card_brand']
 
         # request configuration
         self.s = requests.Session()
@@ -84,6 +95,10 @@ class Worker(threading.Thread):
         self.cc_token = int()
         self.cc_hash = str()
         self.payment_instruction_id = int()
+
+    @staticmethod
+    def log(text):
+        print('[{}] : {}'.format(datetime.now(), text))
 
     def create_account(self):
         """
@@ -105,9 +120,9 @@ class Worker(threading.Thread):
         self.email = r_email
         self.password = r_password
         # create the account
-        print('pass: {}'.format(r_password))
-        print('creating account - F: {} L: {}'.format(r_first_name, r_last_name))
-        print('getting auth token from login page')
+        self.log('pass: {}'.format(r_password))
+        self.log('creating account - F: {} L: {}'.format(r_first_name, r_last_name))
+        self.log('getting auth token from login page')
         try:
             r = self.s.get(
                 url='https://hotwheelscollectors.mattel.com/webapp/wcs/stores/servlet/AjaxLogonView',
@@ -117,17 +132,17 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while getting auth token from login page')
+            self.log('unable to reach server while getting auth token from login page')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while getting auth token from login page'.format(r.status_code))
+            self.log('bad status {} while getting auth token from login page'.format(r.status_code))
             return False
         try:
             auth_token = re.findall('<input type="hidden" name="authToken" value="(.*)"', r.text)[0]
         except IndexError:
-            print('unable to find auth token in page source')
+            self.log('unable to find auth token in page source')
             return False
         try:
             r = self.s.post(
@@ -174,14 +189,14 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server')
+            self.log('unable to reach server')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status code {} while creating account'.format(r.status_code))
+            self.log('bad status code {} while creating account'.format(r.status_code))
             return False
-        print('generated account: {}:{}'.format(r_email, r_password))
+        self.log('generated account: {}:{}'.format(r_email, r_password))
         self.write_account_to_file(r_email, r_password)
         return True
 
@@ -197,7 +212,7 @@ class Worker(threading.Thread):
         generated.
         :return:
         """
-        print('logging in to account {}'.format(self.email))
+        self.log('logging in to account {}'.format(self.email))
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/AjaxLogon',
@@ -226,18 +241,18 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while logging in')
+            self.log('connection error while logging in')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status code {} while logging in'.format(r.status_code))
+            self.log('bad status code {} while logging in'.format(r.status_code))
             return False
-        print('logged in successfully')
+        self.log('logged in successfully')
         return True
 
     def set_account_tier(self, tier=2, tier_code='Chrome'):
-        print('setting account to tier {}'.format(tier))
+        self.log('setting account to tier {}'.format(tier))
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/AjaxUpdateMembershipInfo',
@@ -252,14 +267,14 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while setting account tier')
+            self.log('connection error while setting account tier')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status code {} while setting account tier'.format(r.status_code))
+            self.log('error bad status code {} while setting account tier'.format(r.status_code))
             return False
-        print('finished setting account tier')
+        self.log('finished setting account tier')
         return True
 
     def go_to_shop(self):
@@ -268,18 +283,18 @@ class Worker(threading.Thread):
         it to retrieve products that are in stock so that we can automatically parse out a dummy item to ATC
         :return:
         """
-        print('going to shop main page')
+        self.log('going to shop main page')
         try:
             r = self.s.get(
                 url='https://hotwheelscollectors.mattel.com/shop/en-us/hwc/shop'
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while going to shop')
+            self.log('unable to reach server while going to shop')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status code {} while going to shop'.format(r.status_code))
+            self.log('bad status code {} while going to shop'.format(r.status_code))
             return False
         return True
 
@@ -288,7 +303,7 @@ class Worker(threading.Thread):
         Adds a dummy item to cart based on its catalog ID (NOT part number)
         :return:
         """
-        print('adding dummy item to cart')
+        self.log('adding dummy item to cart')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/AjaxRESTOrderItemAdd',
@@ -303,33 +318,33 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while adding dummy item to cart')
+            self.log('unable to reach server while adding dummy item to cart')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while adding dummy item to cart'.format(r.status_code))
+            self.log('bad status {} while adding dummy item to cart'.format(r.status_code))
             return False
-        print('parsing order item id and order id')
+        self.log('parsing order item id and order id')
         try:
             self.order_id = re.findall('"orderId": "(.*)",', r.text)[0]
         except IndexError:
-            print('error unable to find order ID from response data')
-            print(r.text)
+            self.log('error unable to find order ID from response data')
+            self.log(r.text)
 
             if 'out of stock' in r.text:
-                print('dummy item is out of stock')
+                self.log('dummy item is out of stock')
             return False
         try:
             self.dummy_order_item_id = re.findall('"orderItemId": "(.*)"', r.text)[0]
         except IndexError:
-            print('error unable to find dummy item ID from response data')
+            self.log('error unable to find dummy item ID from response data')
             return False
-        print('order id: {}, dummy order item id: {}'.format(self.order_id, self.dummy_order_item_id))
+        self.log('order id: {}, dummy order item id: {}'.format(self.order_id, self.dummy_order_item_id))
 
         # TODO: this request might be unnecessary, as it only returns some HTML and doesn't seem to modify the order
         #
-        # print('calling mini cart display')
+        # self.log('calling mini cart display')
         # try:
         #     r = self.s.post(
         #         url='https://hotwheelscollectors.mattel.com/shop/MiniShopCartDisplayView',
@@ -346,12 +361,12 @@ class Worker(threading.Thread):
         #         }
         #     )
         # except requests.exceptions.ConnectionError:
-        #     print('unable to reach server on mini cart display in dummy add to cart')
+        #     self.log('unable to reach server on mini cart display in dummy add to cart')
         #     return False
         # try:
         #     r.raise_for_status()
         # except requests.exceptions.HTTPError:
-        #     print('bad status {} on mini cart display in dummy add to cart'.format(r.status_code))
+        #     self.log('bad status {} on mini cart display in dummy add to cart'.format(r.status_code))
         #     return False
         return True
 
@@ -360,7 +375,7 @@ class Worker(threading.Thread):
         This method isn't exactly necessary, as it returns a veiw that doesn't contain anything that we need
         :return:
         """
-        print('calculating order and going to cart')
+        self.log('calculating order and going to cart')
         try:
             r = self.s.get(
                 url='https://hotwheelscollectors.mattel.com/shop/RESTOrderCalculate',
@@ -377,12 +392,12 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while calculating order')
+            self.log('unable to reach server while calculating order')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status code {} while calculating order'.format(r.status_code))
+            self.log('bad status code {} while calculating order'.format(r.status_code))
             return False
         return True
 
@@ -393,7 +408,7 @@ class Worker(threading.Thread):
         dummy item, saves it for later and then subsequently removes it from the cart (2 separate requests).
         :return:
         """
-        print('saving dummy item for later')
+        self.log('saving dummy item for later')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/MattelAjaxSFLOrderProcess',
@@ -406,7 +421,7 @@ class Worker(threading.Thread):
                     'partNumber': '',
                     'catEntryId': self.settings['dummy_item_cat_id'],
                     'quantity': '1',
-                    'description': '',  # TODO - probably not needed
+                    'description': '',
                     'actionType': 'addToSFL',
                     'penOrderItemId': self.dummy_order_item_id,
                     'penOrderId': self.order_id,
@@ -414,14 +429,14 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while saving dummy item for later')
+            self.log('unable to reach server while saving dummy item for later')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status code {} while saving dummy item for later'.format(r.status_code))
+            self.log('bad status code {} while saving dummy item for later'.format(r.status_code))
             return False
-        print('removing dummy item from cart')
+        self.log('removing dummy item from cart')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/AjaxRESTOrderItemDelete',
@@ -439,14 +454,14 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while deleting dummy item after sfl')
+            self.log('unable to reach server while deleting dummy item after sfl')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while deleting dummy item after sfl'.format(r.status_code))
+            self.log('bad status {} while deleting dummy item after sfl'.format(r.status_code))
             return False
-        print('successfully removed dummy item to cart after sfl')
+        self.log('successfully removed dummy item to cart after sfl')
         return True
 
     def re_add_dummy_item(self):
@@ -454,7 +469,7 @@ class Worker(threading.Thread):
         Adds the dummy item back into the cart from the SFL list.
         :return:
         """
-        print('re-adding dummy item to cart from sfl list')
+        self.log('re-adding dummy item to cart from sfl list')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/MattelAjaxSFLOrderProcess',
@@ -476,12 +491,12 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('error reaching server while adding dummy item to cart back from sfl')
+            self.log('error reaching server while adding dummy item to cart back from sfl')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status code {} while adding dummy item to cart back from sfl'.format(r.status_code))
+            self.log('bad status code {} while adding dummy item to cart back from sfl'.format(r.status_code))
             return False
         try:
             r = self.s.post(
@@ -499,12 +514,12 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while removing dummy item from sfl list')
+            self.log('unable to reach server while removing dummy item from sfl list')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while removing dummy item from sfl list'.format(r.status_code))
+            self.log('bad status {} while removing dummy item from sfl list'.format(r.status_code))
             return False
 
         return False
@@ -516,7 +531,7 @@ class Worker(threading.Thread):
         Furthermore, you can test the ATC in browser and it will return the catalog ID based on the part number.
         :return:
         """
-        print('adding target item {} to cart'.format(self.settings['target_item_part_num']))
+        self.log('adding target item {} to cart'.format(self.settings['target_item_part_num']))
         try:
             r = self.s.get(
                 url='https://hotwheelscollectors.mattel.com/shop/MattelAjaxSFLOrderProcess',
@@ -538,19 +553,19 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('unable to reach server while adding target item to cart')
+            self.log('unable to reach server while adding target item to cart')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while adding target item to cart'.format(r.status_code))
+            self.log('bad status {} while adding target item to cart'.format(r.status_code))
             return False
 
         # TODO: look for more error potential error codes. Unclear if the site will return this for OOS target
         #   product when site is under load
 
         if '_ERR_PROD_NOT_ORDERABLE' in r.text:
-            print('error product out of stock')
+            self.log('error product out of stock')
             return False
         return True
 
@@ -559,9 +574,9 @@ class Worker(threading.Thread):
 
         :return:
         """
-        print('adding and setting shipping address')
+        self.log('adding and setting shipping address')
         try:
-            print('getting auth token')
+            self.log('getting auth token')
             r = self.s.get(
                 url='https://hotwheelscollectors.mattel.com/webapp/wcs/stores/servlet/OrderShippingView',
                 params={
@@ -571,19 +586,19 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while getting auth token')
+            self.log('connection error while getting auth token')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while getting auth token')
+            self.log('bad status {} while getting auth token')
             return False
         try:
             auth_token = re.findall('<input type="hidden" name="authToken" value="(.*)"', r.text)[0]
         except IndexError:
-            print('error unable to find an auth token')
+            self.log('error unable to find an auth token')
             return False
-        print('got auth token {}'.format(auth_token))
+        self.log('got auth token {}'.format(auth_token))
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/webapp/wcs/stores/servlet/AjaxPersonChangeServiceAddressAdd',
@@ -617,20 +632,20 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while creating new address')
+            self.log('connection error while creating new address')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while submitting new address'.format(r.status_code))
+            self.log('error bad status {} while submitting new address'.format(r.status_code))
             return False
         try:
             self.shipping_address_id = r.text.split('["')[1].split('"]')[0]
         except IndexError:
-            print('unable to find shipping address id in response')
+            self.log('unable to find shipping address id in response')
             return False
-        print('got new address id {}'.format(self.shipping_address_id))
-        print('setting address')
+        self.log('got new address id {}'.format(self.shipping_address_id))
+        self.log('setting address')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/webapp/wcs/stores/servlet/AjaxRESTOrderShipInfoUpdate',
@@ -651,19 +666,19 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while setting address')
+            self.log('connection error while setting address')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while setting address'.format(r.status_code))
+            self.log('error bad status {} while setting address'.format(r.status_code))
             return False
         return True
 
     def add_and_set_cc(self):
-        print('adding billing address and CC')
+        self.log('adding billing address and CC')
         try:
-            print('getting auth token')
+            self.log('getting auth token')
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/BillingAddressDisplayView_1',
                 params={
@@ -682,19 +697,19 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while getting auth token')
+            self.log('connection error while getting auth token')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while getting auth token'.format(r.status_code))
+            self.log('error bad status {} while getting auth token'.format(r.status_code))
             return False
         try:
             auth_token = re.findall('<input type="hidden" name="authToken" value="(.*)"', r.text)[0]
         except IndexError:
-            print('unable to find auth token')
+            self.log('unable to find auth token')
             return False
-        print('got new auth token {}'.format(auth_token))
+        self.log('got new auth token {}'.format(auth_token))
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/AjaxPersonChangeServiceAddressAdd',
@@ -733,17 +748,17 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while adding new billing address')
+            self.log('connection error while adding new billing address')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while adding new billing address'.format(r.status_code))
+            self.log('error bad status {} while adding new billing address'.format(r.status_code))
             return False
         try:
             self.billing_address_id = r.text.split('["')[1].split('"]')[0]
         except IndexError:
-            print('unable to find billing address ID in response')
+            self.log('unable to find billing address ID in response')
             return False
         try:
             r = self.s.post(
@@ -763,20 +778,20 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while adding new cc')
+            self.log('connection error while adding new cc')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while adding new cc'.format(r.status_code))
+            self.log('error bad status {} while adding new cc'.format(r.status_code))
             return False
         try:
             self.cc_id = re.findall('"creditCardId": "(.*)"', r.text)[0]
             self.cc_token = re.findall('"token": "(.*)"', r.text)[0]
         except IndexError:
-            print('unable to find CC ID in response')
+            self.log('unable to find CC ID in response')
             return False
-        print('getting cc hash')
+        self.log('getting cc hash')
         try:
             # now we submit to get the hash
             r = self.s.post(
@@ -801,17 +816,17 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while getting cc hash')
+            self.log('connection error while getting cc hash')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error while getting cc hash')
+            self.log('error while getting cc hash')
             return False
         try:
             self.cc_hash = re.findall('id="hashCode_1" value="(.*)"', r.text)[0]
         except IndexError:
-            print('error unable to find cc hash token in response')
+            self.log('error unable to find cc hash token in response')
             return False
 
         # now we get a new auth token by submitting to billing view
@@ -819,7 +834,7 @@ class Worker(threading.Thread):
         # todo: this is replicated above. move to fx
 
         try:
-            print('getting auth token')
+            self.log('getting auth token')
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/BillingAddressDisplayView_1',
                 params={
@@ -838,20 +853,20 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while getting auth token')
+            self.log('connection error while getting auth token')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while getting auth token'.format(r.status_code))
+            self.log('error bad status {} while getting auth token'.format(r.status_code))
             return False
         try:
             auth_token = re.findall('<input type="hidden" name="authToken" value="(.*)"', r.text)[0]
         except IndexError:
-            print('unable to find auth token')
+            self.log('unable to find auth token')
             return False
         # gather order total
-        print('getting order total $')
+        self.log('getting order total $')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/webapp/wcs/stores/servlet/orderTotalAsJSON',
@@ -865,21 +880,21 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while getting order total')
+            self.log('connection error while getting order total')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('error bad status {} while getting order total'.format(r.status_code))
+            self.log('error bad status {} while getting order total'.format(r.status_code))
             return False
         try:
             self.order_total = r.text.split('orderTotal: "')[1].split('"')[0]
-            print('got order total ${}'.format(self.order_total))
+            self.log('got order total ${}'.format(self.order_total))
         except IndexError:
-            print('unable to find order total in response')
+            self.log('unable to find order total in response')
 
         # now we set PI
-        print('setting payment instruction')
+        self.log('setting payment instruction')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/webapp/wcs/stores/servlet/AjaxRESTOrderPIAdd',
@@ -910,22 +925,22 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while setting payment instruction')
+            self.log('connection error while setting payment instruction')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while setting payment instruction'.format(r.status_code))
+            self.log('bad status {} while setting payment instruction'.format(r.status_code))
             return False
         try:
             self.payment_instruction_id = re.findall('"piId": "(.*)"', r.text)[0]
-            print('got payment instruction id {}'.format(self.payment_instruction_id))
+            self.log('got payment instruction id {}'.format(self.payment_instruction_id))
         except IndexError:
-            print('error unable to find payment instruction id in response')
+            self.log('error unable to find payment instruction id in response')
             return False
 
     def submit_order(self):
-        print('submitting order')
+        self.log('submitting order')
         try:
             r = self.s.post(
                 url='https://hotwheelscollectors.mattel.com/shop/AjaxRESTOrderSubmit',
@@ -944,16 +959,16 @@ class Worker(threading.Thread):
                 }
             )
         except requests.exceptions.ConnectionError:
-            print('connection error while submitting order')
+            self.log('connection error while submitting order')
             return False
         try:
             r.raise_for_status()
         except requests.exceptions.HTTPError:
-            print('bad status {} while submitting order'.format(r.status_code))
+            self.log('bad status {} while submitting order'.format(r.status_code))
             return False
 
     def run(self):
-        print('worker is running')
+        self.log('worker is running')
         if self.settings['generate_accounts']:
             self.create_account()
             self.set_account_tier()
