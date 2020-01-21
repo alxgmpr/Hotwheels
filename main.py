@@ -52,17 +52,29 @@ def main():
                 account_lines = list(filter(None, account_lines))
                 tasks = dict()
                 tasks['tasks'] = list()
-                for account_line in account_lines:
+                for idx, account_line in enumerate(account_lines):
                     split_account_line = account_line.split(':')
+                    # use card index in case the list of accounts exceeds list of cards
+                    card_index = idx
+                    if card_index >= len(cards_json['cards']):
+                        card_index = 0
                     try:
                         tasks['tasks'].append({
                             'email': split_account_line[0],
                             'password': split_account_line[1],
                             'first_name': split_account_line[2],
-                            'last_name': split_account_line[3]
+                            'last_name': split_account_line[3],
+                            'cc_num': cards_json['cards'][card_index]['cc_num'],
+                            'cc_exp_m': cards_json['cards'][card_index]['cc_exp_m'],
+                            'cc_exp_y': cards_json['cards'][card_index]['cc_exp_y'],
+                            'cc_cvv': cards_json['cards'][card_index]['cc_cvv'],
+                            'cc_brand': cards_json['cards'][card_index]['cc_brand']
                         })
                     except IndexError:
                         print('error missing data from account line')
+                        exit(-1)
+                    except KeyError:
+                        print('error missing data from card json')
                         exit(-1)
         except IOError:
             print('error loading tasks from file')
